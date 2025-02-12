@@ -5,11 +5,55 @@ on:
     branches: [main]
 
 jobs:
-  sonar_scan:
+  build:
     runs-on: self-hosted
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Get runner number
+        id: runner_number
+        run: echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV
+
+      - name: Display runner number
+        run: echo "Runner Number: $RUNNER_NUMBER"
+
+      - name: Log into Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build Docker image
+        run: |
+          echo "Building Docker image with tag: mohitgaur1272/w3:$RUNNER_NUMBER"
+          docker build -t mohitgaur1272/w3:$RUNNER_NUMBER .
+
+      - name: Push Docker image to Docker Hub
+        run: docker push mohitgaur1272/w3:$RUNNER_NUMBER
+
+      - name: Remove Local Docker Image
+        run: docker rmi mohitgaur1272/w3:$RUNNER_NUMBER --force
+
+      - name: Remove Unused Docker Data
+        run: docker system prune -af
+
+      - name: Pull Docker image from Docker Hub
+        run: docker pull mohitgaur1272/w3:$RUNNER_NUMBER
+
+  sonar_scan:
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install SonarQube Scanner
+        run: |
+          wget -O sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+          unzip sonar-scanner.zip
+          sudo mv sonar-scanner-5.0.1.3006-linux /opt/sonar-scanner
+          echo 'export PATH=$PATH:/opt/sonar-scanner/bin' >> ~/.bashrc
+          source ~/.bashrc
+          sonar-scanner --version
 
       - name: Run SonarQube Analysis
         run: |
@@ -19,49 +63,16 @@ jobs:
             -Dsonar.host.url=http://13.201.41.148:9000 \
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
-  build:
-    runs-on: self-hosted  
-    needs: sonar_scan   # SonarQube must finish before building the image
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Get runner number
-        id: runner_number
-        run: echo "RUNNER_NUMBER=$(echo $GITHUB_RUN_ID)" >> $GITHUB_ENV  
-
-      - name: Log into Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
-      - name: Build Docker image
-        run: |
-          IMAGE_TAG="mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
-          echo "Building Docker image with tag: $IMAGE_TAG"
-          docker build -t $IMAGE_TAG .
-
-      - name: Push Docker image to Docker Hub
-        run: docker push mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
-
-      - name: Remove Local Docker Image (Free Up Space)
-        run: docker rmi mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }} --force
-
-      - name: Remove Unused Docker Data
-        run: docker system prune -af
-
   trivy_scan:
     runs-on: self-hosted
-    needs: build
+    needs: sonar_scan
     steps:
-      - name: Pull Docker image from Docker Hub
-        run: docker pull mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+      - name: Scan Image with Trivy
+        run: trivy image --severity HIGH,CRITICAL mohitgaur1272/w3:$RUNNER_NUMBER
 
-      - name: Run Trivy vulnerability scan
-        run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
-
-  run_container:
+  deploy:
     runs-on: self-hosted
     needs: trivy_scan
     steps:
       - name: Run Docker container
-        run: docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+        run: docker run -itd --name mohit -p 100:80 mohitgaur1272/w3:$RUNNER_NUMBER
