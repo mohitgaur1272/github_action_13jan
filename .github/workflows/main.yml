@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Debug RUNNER_NUMBER
-        run: echo "Runner Number: $RUNNER_NUMBER"
+        run: echo "Runner Number:$RUNNER_NUMBER"
         
       - name: Pull Docker image from Docker Hub
         run: docker pull mohitgaur1272/gaur13:$RUNNER_NUMBER
