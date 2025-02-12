@@ -55,9 +55,9 @@ jobs:
 
       - name: Run SonarQube Analysis
         run: |
-          sonar-scanner \
-            -Dsonar.projectKey=myproject \
-            -Dsonar.sources=. \
+          /opt/sonar-scanner/bin/sonar-scanner \
+            -Dsonar.projectKey=mohit \
+            -Dsonar.sources=/home/ubuntu/github_action_13jan/ \
             -Dsonar.host.url=http://13.201.41.148:9000 \
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
