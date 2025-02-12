@@ -5,8 +5,23 @@ on:
     branches: [main]
 
 jobs:
+  sonar_scan:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run SonarQube Analysis
+        run: |
+          sonar-scanner \
+            -Dsonar.projectKey=myproject \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=http://13.201.41.148:9000 \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+
   build:
-    runs-on: self-hosted  # Local machine pe run hoga
+    runs-on: self-hosted  
+    needs: sonar_scan   # SonarQube must finish before building the image
 
     steps:
       - name: Checkout code
@@ -14,18 +29,16 @@ jobs:
 
       - name: Get runner number
         id: runner_number
-        run: echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV  
-
-        #name: Display runner number
-        #run: echo "Runner Number: ${{ env.RUNNER_NUMBER }}"
+        run: echo "RUNNER_NUMBER=$(echo $GITHUB_RUN_ID)" >> $GITHUB_ENV  
 
       - name: Log into Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Build Docker image
         run: |
-          echo "Building Docker image with tag: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
-          docker build -t mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }} .
+          IMAGE_TAG="mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
+          echo "Building Docker image with tag: $IMAGE_TAG"
+          docker build -t $IMAGE_TAG .
 
       - name: Push Docker image to Docker Hub
         run: docker push mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
@@ -39,7 +52,6 @@ jobs:
   trivy_scan:
     runs-on: self-hosted
     needs: build
-
     steps:
       - name: Pull Docker image from Docker Hub
         run: docker pull mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
@@ -50,7 +62,6 @@ jobs:
   run_container:
     runs-on: self-hosted
     needs: trivy_scan
-
     steps:
       - name: Run Docker container
         run: docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
