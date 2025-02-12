@@ -16,8 +16,8 @@ jobs:
         id: runner_number
         run: echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV  
 
-      - name: Display runner number
-        run: echo "Runner Number: ${{ env.RUNNER_NUMBER }}"
+        #name: Display runner number
+        #run: echo "Runner Number: ${{ env.RUNNER_NUMBER }}"
 
       - name: Log into Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
