@@ -22,12 +22,10 @@ jobs:
       - name: Log into Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      - name: Navigate to project directory
-        run: cd /home/ubuntu/github_action_13jan/  # Actual repo path update karein
-
       - name: Build Docker image
+        working-directory: /home/ubuntu/github_action_13jan
         run: |
-          echo "Building Docker image with tag: mohitgaur1272/w3:$RUNNER_NUMBER"
+          echo "Building Docker image with tag: mohitgaur1272/gaur13:$RUNNER_NUMBER"
           docker build -t mohitgaur1272/gaur13:$RUNNER_NUMBER .
 
       - name: Push Docker image to Docker Hub
@@ -39,30 +37,21 @@ jobs:
       - name: Remove Unused Docker Data
         run: docker system prune -af
 
-      - name: Pull Docker image from Docker Hub
-        run: docker pull mohitgaur1272/gaur13:$RUNNER_NUMBER
-
-      - name: Run Docker container
-        run: docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:$RUNNER_NUMBER
-
-  sonar_scan:
-    runs-on: self-hosted
-    needs: build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Run SonarQube Analysis
-        run: |
-          sonar-scanner \
-            -Dsonar.projectKey=myproject \
-            -Dsonar.sources=. \
-            -Dsonar.host.url=http://13.201.41.148:9000 \
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
-
   trivy_scan:
     runs-on: self-hosted
     needs: build
+
     steps:
+      - name: Pull Docker image from Docker Hub
+        run: docker pull mohitgaur1272/gaur13:$RUNNER_NUMBER
+
       - name: Run Trivy vulnerability scan
         run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13:$RUNNER_NUMBER
+
+  run_container:
+    runs-on: self-hosted
+    needs: trivy_scan
+
+    steps:
+      - name: Run Docker container
+        run: docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:$RUNNER_NUMBER
