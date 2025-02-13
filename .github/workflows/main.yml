@@ -16,7 +16,7 @@ jobs:
         run: echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV  
 
       - name: Display runner number
-        run: echo "Runner Number: ${{ env.RUNNER_NUMBER }}"
+        run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
 
       - name: Log into Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
@@ -48,7 +48,7 @@ jobs:
           /opt/sonar-scanner/bin/sonar-scanner \
             -Dsonar.projectKey=mohit \
             -Dsonar.sources=${{ github.workspace }} \
-            -Dsonar.host.url=http://13.201.41.148:9000 \
+            -Dsonar.host.url=http://3.110.210.151:9000 \
             -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
   trivy_scan:
@@ -57,7 +57,7 @@ jobs:
 
     steps:
       - name: Debug RUNNER_NUMBER
-        run: echo "Runner Number: ${{ env.RUNNER_NUMBER }}"
+        run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
         
       - name: Pull Docker image from Docker Hub
         run: docker pull mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
