@@ -5,10 +5,26 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  sonar_scan:
     runs-on: self-hosted
 
-    outputs:  # ✅ Pass RUNNER_NUMBER to other jobs
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run SonarQube Analysis
+        run: |
+          /opt/sonar-scanner/bin/sonar-scanner \
+            -Dsonar.projectKey=mohit \
+            -Dsonar.sources=${{ github.workspace }} \
+            -Dsonar.host.url=http://3.110.210.151:9000 \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+
+  build:
+    runs-on: self-hosted
+    needs: sonar_scan  # ✅ SonarQube scan must finish first
+
+    outputs:
       RUNNER_NUMBER: ${{ steps.set-runner-number.outputs.RUNNER_NUMBER }}
 
     steps:
@@ -16,21 +32,43 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Get runner number
-        id: set-runner-number  # ✅ Correctly set output
+        id: set-runner-number
         run: |
           echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV
-          echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_OUTPUT  # ✅ Correct way
+          echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_OUTPUT
 
       - name: Display runner number
         run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
-
-      - name: Log into Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Build Docker image
         run: |
           echo "Building Docker image with tag: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
           docker build -t mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }} .
+
+  trivy_scan:
+    runs-on: self-hosted
+    needs: build
+
+    steps:
+      - name: Set RUNNER_NUMBER from build job
+        run: echo "RUNNER_NUMBER=${{ needs.build.outputs.RUNNER_NUMBER }}" >> $GITHUB_ENV
+
+      - name: Debug RUNNER_NUMBER
+        run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
+
+      - name: Scan Image with Trivy
+        run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+
+  push_and_cleanup:
+    runs-on: self-hosted
+    needs: trivy_scan  # ✅ Trivy scan must finish before pushing
+
+    steps:
+      - name: Set RUNNER_NUMBER from build job
+        run: echo "RUNNER_NUMBER=${{ needs.build.outputs.RUNNER_NUMBER }}" >> $GITHUB_ENV
+
+      - name: Log into Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Push Docker image to Docker Hub
         run: docker push mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
@@ -41,44 +79,17 @@ jobs:
       - name: Remove Unused Docker Data
         run: docker system prune -af
 
-  sonar_scan:
-    runs-on: self-hosted
-    needs: build
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-        
-      - name: Run SonarQube Analysis
-        run: |
-          /opt/sonar-scanner/bin/sonar-scanner \
-            -Dsonar.projectKey=mohit \
-            -Dsonar.sources=${{ github.workspace }} \
-            -Dsonar.host.url=http://3.110.210.151:9000 \
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
-
-  trivy_scan:
-    runs-on: self-hosted
-    needs: build
-
-    steps:
-      - name: Debug RUNNER_NUMBER
-        run: echo "Runner Number:${{ needs.build.outputs.RUNNER_NUMBER }}"
-        
-      - name: Pull Docker image from Docker Hub
-        run: docker pull mohitgaur1272/gaur13:${{ needs.build.outputs.RUNNER_NUMBER }}
-
-      - name: Scan Image with Trivy
-        run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13:${{ needs.build.outputs.RUNNER_NUMBER }}
-
   deploy:
     runs-on: self-hosted
-    needs: trivy_scan
+    needs: push_and_cleanup  # ✅ Image push & cleanup must finish first
 
     steps:
-      - name: Debug RUNNER_NUMBER
-        run: echo "Runner Number:${{ needs.build.outputs.RUNNER_NUMBER }}"
+      - name: Set RUNNER_NUMBER from build job
+        run: echo "RUNNER_NUMBER=${{ needs.build.outputs.RUNNER_NUMBER }}" >> $GITHUB_ENV
+
+      - name: Pull Docker image from Docker Hub
+        run: docker pull mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
 
       - name: Run Docker container
         run: |
-          docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ needs.build.outputs.RUNNER_NUMBER }}
+          docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
