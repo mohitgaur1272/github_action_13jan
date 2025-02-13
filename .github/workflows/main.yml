@@ -22,27 +22,21 @@ jobs:
 
   build:
     runs-on: self-hosted
-    needs: sonar_scan  # ✅ SonarQube scan must finish first
+    needs: sonar_scan
 
     outputs:
-      RUNNER_NUMBER: ${{ steps.set-runner-number.outputs.RUNNER_NUMBER }}
+      RUNNER_NUMBER: ${{ github.run_id }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Get runner number
-        id: set-runner-number
-        run: |
-          echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV
-          echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_OUTPUT
-
-      - name: Display runner number
-        run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
+      - name: Set Runner Number
+        run: echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV
 
       - name: Build Docker image
         run: |
-          echo "Building Docker image with tag: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
+          echo "Building Docker image: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
           docker build -t mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }} .
 
   trivy_scan:
@@ -50,30 +44,29 @@ jobs:
     needs: build
 
     steps:
-      - name: Set RUNNER_NUMBER from build job
+      - name: Set RUNNER_NUMBER
         run: echo "RUNNER_NUMBER=${{ needs.build.outputs.RUNNER_NUMBER }}" >> $GITHUB_ENV
-
-      - name: Debug RUNNER_NUMBER
-        run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
 
       - name: Scan Image with Trivy
         run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
 
   push_and_cleanup:
     runs-on: self-hosted
-    needs: trivy_scan  # ✅ Trivy scan must finish before pushing
+    needs: trivy_scan
 
     steps:
-      - name: Set RUNNER_NUMBER from build job
+      - name: Set RUNNER_NUMBER
         run: echo "RUNNER_NUMBER=${{ needs.build.outputs.RUNNER_NUMBER }}" >> $GITHUB_ENV
 
       - name: Log into Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
       - name: Push Docker image to Docker Hub
-        run: docker push mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+        run: |
+          echo "Pushing Image: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
+          docker push mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
 
-      - name: Remove Local Docker Image (Free Up Space)
+      - name: Remove Local Docker Image
         run: docker rmi mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }} --force
 
       - name: Remove Unused Docker Data
@@ -81,15 +74,18 @@ jobs:
 
   deploy:
     runs-on: self-hosted
-    needs: push_and_cleanup  # ✅ Image push & cleanup must finish first
+    needs: push_and_cleanup
 
     steps:
-      - name: Set RUNNER_NUMBER from build job
+      - name: Set RUNNER_NUMBER
         run: echo "RUNNER_NUMBER=${{ needs.build.outputs.RUNNER_NUMBER }}" >> $GITHUB_ENV
 
       - name: Pull Docker image from Docker Hub
-        run: docker pull mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+        run: |
+          echo "Pulling Image: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
+          docker pull mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
 
       - name: Run Docker container
         run: |
+          echo "Running Container: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
           docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
