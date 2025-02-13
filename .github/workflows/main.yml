@@ -83,4 +83,5 @@ jobs:
       - name: Run Docker Container
         run: |
           echo "Running Container: mohitgaur1272/gaur13:${{ env.IMAGE_TAG }}"
+          docker rm -f mohit 
           docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ env.IMAGE_TAG }}
