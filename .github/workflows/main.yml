@@ -55,6 +55,9 @@ jobs:
     runs-on: self-hosted
     needs: sonar_scan
 
+    env:
+      RUNNER_NUMBER: ${{ needs.build.outputs.RUNNER_NUMBER }}
+ 
     steps:
       - name: Debug RUNNER_NUMBER
         run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
@@ -69,6 +72,9 @@ jobs:
     runs-on: self-hosted
     needs: trivy_scan
 
+    #env:
+    #  RUNNER_NUMBER: ${{ needs.build.outputs.RUNNER_NUMBER }}
+      
     steps:
       - name: Run Docker container
         run: docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
