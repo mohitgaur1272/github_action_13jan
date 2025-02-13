@@ -25,49 +25,47 @@ jobs:
     needs: sonar_scan
 
     outputs:
-      RUNNER_NUMBER: ${{ github.run_id }}
+      IMAGE_TAG: ${{ github.run_id }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set Runner Number
-        run: echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV
-
-      - name: Build Docker image
+      - name: Build Docker Image
         run: |
-          echo "Building Docker image: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
-          docker build -t mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }} .
+          export IMAGE_TAG=${{ github.run_id }}
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+          docker build -t mohitgaur1272/gaur13:$IMAGE_TAG .
 
   trivy_scan:
     runs-on: self-hosted
     needs: build
 
     steps:
-      - name: Set RUNNER_NUMBER
-        run: echo "RUNNER_NUMBER=${{ needs.build.outputs.RUNNER_NUMBER }}" >> $GITHUB_ENV
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${{ needs.build.outputs.IMAGE_TAG }}" >> $GITHUB_ENV
 
       - name: Scan Image with Trivy
-        run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+        run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13:$IMAGE_TAG
 
   push_and_cleanup:
     runs-on: self-hosted
     needs: trivy_scan
 
     steps:
-      - name: Set RUNNER_NUMBER
-        run: echo "RUNNER_NUMBER=${{ needs.build.outputs.RUNNER_NUMBER }}" >> $GITHUB_ENV
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${{ needs.build.outputs.IMAGE_TAG }}" >> $GITHUB_ENV
 
       - name: Log into Docker Hub
         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-      - name: Push Docker image to Docker Hub
+      - name: Push Docker Image to Docker Hub
         run: |
-          echo "Pushing Image: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
-          docker push mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+          echo "Pushing Image: mohitgaur1272/gaur13:$IMAGE_TAG"
+          docker push mohitgaur1272/gaur13:$IMAGE_TAG
 
       - name: Remove Local Docker Image
-        run: docker rmi mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }} --force
+        run: docker rmi mohitgaur1272/gaur13:$IMAGE_TAG --force
 
       - name: Remove Unused Docker Data
         run: docker system prune -af
@@ -77,15 +75,15 @@ jobs:
     needs: push_and_cleanup
 
     steps:
-      - name: Set RUNNER_NUMBER
-        run: echo "RUNNER_NUMBER=${{ needs.build.outputs.RUNNER_NUMBER }}" >> $GITHUB_ENV
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${{ needs.build.outputs.IMAGE_TAG }}" >> $GITHUB_ENV
 
-      - name: Pull Docker image from Docker Hub
+      - name: Pull Docker Image from Docker Hub
         run: |
-          echo "Pulling Image: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
-          docker pull mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+          echo "Pulling Image: mohitgaur1272/gaur13:$IMAGE_TAG"
+          docker pull mohitgaur1272/gaur13:$IMAGE_TAG
 
-      - name: Run Docker container
+      - name: Run Docker Container
         run: |
-          echo "Running Container: mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}"
-          docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+          echo "Running Container: mohitgaur1272/gaur13:$IMAGE_TAG"
+          docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:$IMAGE_TAG
