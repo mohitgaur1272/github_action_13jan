@@ -6,14 +6,20 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted  # Running on self-hosted runner
+    runs-on: self-hosted
+
+    outputs:  # ✅ Define outputs to pass RUNNER_NUMBER
+      RUNNER_NUMBER: ${{ steps.set-runner-number.outputs.RUNNER_NUMBER }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Get runner number
-        run: echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV  
+        id: set-runner-number  # ✅ Set ID for output reference
+        run: |
+          echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV
+          echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_OUTPUT  # ✅ Correct way to set output
 
       - name: Display runner number
         run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
@@ -53,11 +59,11 @@ jobs:
 
   trivy_scan:
     runs-on: self-hosted
-    needs: sonar_scan
+    needs: build
 
     env:
-      RUNNER_NUMBER: ${{ needs.build.outputs.RUNNER_NUMBER }}
- 
+      RUNNER_NUMBER: ${{ needs.build.outputs.RUNNER_NUMBER }}  # ✅ Correctly fetch the output
+
     steps:
       - name: Debug RUNNER_NUMBER
         run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
@@ -72,9 +78,9 @@ jobs:
     runs-on: self-hosted
     needs: trivy_scan
 
-    #env:
-    #  RUNNER_NUMBER: ${{ needs.build.outputs.RUNNER_NUMBER }}
-      
+    env:
+      RUNNER_NUMBER: ${{ needs.build.outputs.RUNNER_NUMBER }}  # ✅ Correctly fetch the output
+
     steps:
       - name: Run Docker container
         run: docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
