@@ -8,7 +8,7 @@ jobs:
   build:
     runs-on: self-hosted
 
-    outputs:  # ✅ Define outputs to pass RUNNER_NUMBER
+    outputs:  # ✅ Pass RUNNER_NUMBER to other jobs
       RUNNER_NUMBER: ${{ steps.set-runner-number.outputs.RUNNER_NUMBER }}
 
     steps:
@@ -16,10 +16,10 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Get runner number
-        id: set-runner-number  # ✅ Set ID for output reference
+        id: set-runner-number  # ✅ Correctly set output
         run: |
           echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_ENV
-          echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_OUTPUT  # ✅ Correct way to set output
+          echo "RUNNER_NUMBER=${{ github.run_id }}" >> $GITHUB_OUTPUT  # ✅ Correct way
 
       - name: Display runner number
         run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
@@ -61,26 +61,24 @@ jobs:
     runs-on: self-hosted
     needs: build
 
-    env:
-      RUNNER_NUMBER: ${{ needs.build.outputs.RUNNER_NUMBER }}  # ✅ Correctly fetch the output
-
     steps:
       - name: Debug RUNNER_NUMBER
-        run: echo "Runner Number:${{ env.RUNNER_NUMBER }}"
+        run: echo "Runner Number:${{ needs.build.outputs.RUNNER_NUMBER }}"
         
       - name: Pull Docker image from Docker Hub
-        run: docker pull mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+        run: docker pull mohitgaur1272/gaur13:${{ needs.build.outputs.RUNNER_NUMBER }}
 
       - name: Scan Image with Trivy
-        run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+        run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13:${{ needs.build.outputs.RUNNER_NUMBER }}
 
   deploy:
     runs-on: self-hosted
     needs: trivy_scan
 
-    env:
-      RUNNER_NUMBER: ${{ needs.build.outputs.RUNNER_NUMBER }}  # ✅ Correctly fetch the output
-
     steps:
+      - name: Debug RUNNER_NUMBER
+        run: echo "Runner Number:${{ needs.build.outputs.RUNNER_NUMBER }}"
+
       - name: Run Docker container
-        run: docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ env.RUNNER_NUMBER }}
+        run: |
+          docker run -itd --name mohit -p 100:80 mohitgaur1272/gaur13:${{ needs.build.outputs.RUNNER_NUMBER }}
