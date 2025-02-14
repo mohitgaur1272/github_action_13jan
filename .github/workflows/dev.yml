@@ -1,0 +1,76 @@
+
+name: dev deployment
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+jobs:
+  code_scan:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Run SonarQube Analysis
+        run: |
+          /opt/sonar-scanner/bin/sonar-scanner \
+            -Dsonar.projectKey=mohit \
+            -Dsonar.sources=${{ github.workspace }} \
+            -Dsonar.host.url=http://13.233.130.149:9000 \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+
+  build:
+    runs-on: self-hosted  
+    needs: code_scan
+    outputs:
+      IMAGE_TAG: ${{ steps.set_image_tag.outputs.IMAGE_TAG }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Generate Image Tag
+        id: set_image_tag
+        run: echo "IMAGE_TAG=${GITHUB_RUN_ID}" >> $GITHUB_ENV && echo "IMAGE_TAG=${GITHUB_RUN_ID}" >> $GITHUB_OUTPUT
+
+      - name: Log into Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build -t mohitgaur1272/gaur13-dev:${{ env.IMAGE_TAG }} .
+
+      - name: Scan Image with Trivy
+        run: trivy image --severity HIGH,CRITICAL mohitgaur1272/gaur13-dev:${{ env.IMAGE_TAG }}
+
+      - name: Push Docker image to Docker Hub
+        run: docker push mohitgaur1272/gaur13-dev:${{ env.IMAGE_TAG }}
+
+      - name: Remove Running Containers (if any)
+        run: |
+          docker ps -q --filter "ancestor=mohitgaur1272/gaur13-dev:${{ env.IMAGE_TAG }}" | xargs -r docker rm -f
+
+      - name: Remove Local Docker Image
+        run: docker rmi -f mohitgaur1272/gaur13-dev:${{ env.IMAGE_TAG }}
+
+      - name: Clean Up Unused Docker Data
+        run: docker system prune -af
+
+  deploy:
+    runs-on: self-hosted
+    needs: build
+    
+    steps:
+      - name: Set IMAGE_TAG
+        run: echo "IMAGE_TAG=${{ needs.build.outputs.IMAGE_TAG }}" >> $GITHUB_ENV
+
+      - name: Pull Docker image from Docker Hub
+        run: docker pull mohitgaur1272/gaur13-dev:${{ env.IMAGE_TAG }}
+
+      - name: Run Docker container
+        run: |
+          docker stop mohit_dev || true
+          docker rm mohit_dev || true
+          docker run -itd --name mohit_dev -p 1001:80 mohitgaur1272/gaur13-dev:${{ env.IMAGE_TAG }}
